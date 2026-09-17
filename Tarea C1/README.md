@@ -30,7 +30,8 @@ Cada token se imprime como `<TIPO_TOKEN, 'lexema', linea, columna>` y con
 
 ```
 python -m pytest -v
-python -m pytest -v 2>&1 | Select-Object -Last 50  
+python -m pytest -v 2>&1 | Select-Object -Last 50
+python -m pytest -v 2>&1 | Select-Object -Last 15
 ```
 
 ## Estructura
