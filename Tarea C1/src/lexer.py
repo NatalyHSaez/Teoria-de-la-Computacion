@@ -10,7 +10,7 @@ MULTI_OPERADORES ={
     "/":  ("//",),
 }
 '''lista de caracteres que son operadores'''
-OPERADORES_UNO = "=<>*/+\\!;:?"
+OPERADORES_UNO = "=<>*/+!;"
 '''diccionario de delimitadores y su tipo de token'''
 DELIMITADORES = {"(": TokenType.PARENTESIS_IZQ, 
 ")": TokenType.PARENTESIS_DER, 
@@ -61,8 +61,13 @@ class Lexer:
     def _avanzar(self, n=1):
         for _ in range(n):
             if self.pos < self.longitud:
-                if self.texto[self.pos] == "\n":
+                c = self.texto[self.pos]
+                if c == "\r":
                     self.linea += 1
+                    self.columna = 1
+                elif c == "\n":
+                    if self.pos == 0 or self.texto[self.pos - 1] != "\r":
+                        self.linea += 1
                     self.columna = 1
                 else:
                     self.columna += 1
@@ -83,7 +88,7 @@ class Lexer:
             if c in " \t\r\n":
                 self._avanzar()
             elif c == "%":
-                while self.pos < self.longitud and self.texto[self.pos] != "\n":
+                while self.pos < self.longitud and self.texto[self.pos] not in "\r\n":
                     self._avanzar()
             elif c == "/" and self._peek(1) == "*":
                 ini_l, ini_c, ini_p = self.linea, self.columna, self.pos
@@ -103,6 +108,8 @@ class Lexer:
                 break
 
     def analizar(self):
+        if self.tokens and self.tokens[-1].tipo == TokenType.EOF:
+            return self.tokens, self.errores
         while self.pos < self.longitud:
             self._saltar_espacios_y_comentarios()
             if self.pos >= self.longitud:
@@ -113,7 +120,7 @@ class Lexer:
                 self._scan_atomo(linea, columna)
             elif c.isupper() or c == "_":
                 self._scan_variable(linea, columna)
-            elif c.isdigit():
+            elif c in "0123456789":
                 self._scan_numero(linea, columna)
             elif c == "'":
                 self._scan_citado(linea, columna, "'", TokenType.ATOMO_QUOTADO, "'")
@@ -149,25 +156,44 @@ class Lexer:
         self._emitir(tipo, lexema, linea, columna)
 
     def _scan_numero(self, linea, columna, inicio=None):
+        """Número decimal con exponente opcional; el punto final queda separado.
+
+        La recuperación consume el fragmento numérico inválido completo, sin
+        descartar comas, paréntesis, operadores ni el punto final de cláusula.
+        """
         if inicio is None:
             inicio = self.pos
-        while self._peek().isdigit():
+        def digito(c):
+            return bool(c) and c in "0123456789"
+
+        while digito(self._peek()):
             self._avanzar()
-        if self._peek() == "." and self._peek(1).isdigit():
+        if self._peek() == "." and digito(self._peek(1)):
             self._avanzar()
-            while self._peek().isdigit():
+            while digito(self._peek()):
                 self._avanzar()
-            if self._peek() == ".":
+
+        mal_formado = False
+        if self._peek() in ("e", "E"):
+            self._avanzar()
+            if self._peek() in ("+", "-"):
                 self._avanzar()
-                self._error("Numero mal formado", linea, columna,
-                            self.texto[inicio:self.pos], "Consumir y continuar")
-                return
-        elif self._peek().isalpha() or self._peek() == "_":
-            while self.pos < self.longitud and (self.texto[self.pos].isalnum()
-                                                or self.texto[self.pos] == "_"):
+            mal_formado = not digito(self._peek())
+            while digito(self._peek()):
                 self._avanzar()
-            self._error("Numero mal formado (digitos mezclados con letras)", linea, columna,
-                        self.texto[inicio:self.pos], "Consumir el fragmento y continuar")
+
+        if (self._peek().isalnum() or self._peek() == "_"
+                or (self._peek() == "." and digito(self._peek(1)))):
+            mal_formado = True
+            while self.pos < self.longitud:
+                c = self._peek()
+                if c.isalnum() or c == "_" or (c == "." and digito(self._peek(1))):
+                    self._avanzar()
+                else:
+                    break
+        if mal_formado:
+            self._error("Numero mal formado", linea, columna,
+                        self.texto[inicio:self.pos], "Descartar el fragmento completo y continuar")
             return
         self._emitir(TokenType.NUMERO, self.texto[inicio:self.pos], linea, columna)
 
@@ -177,7 +203,7 @@ class Lexer:
             self._emitir(TokenType.OPERADOR, "-->", linea, columna)
             return
         c = self.texto[self.pos]
-        if self.signed_numbers and self._peek(1).isdigit() and not self._ultimo_es_operando():
+        if self.signed_numbers and self._peek(1) and self._peek(1) in "0123456789" and not self._ultimo_es_operando():
             inicio = self.pos
             self._avanzar()
             self._scan_numero(linea, columna, inicio)
@@ -202,15 +228,18 @@ class Lexer:
                     self._avanzar()
                 continue
             if c == delim:
+                if self._peek(1) == delim:
+                    self._avanzar(2)
+                    continue
                 self._avanzar()
                 self._emitir(tipo, self.texto[inicio:self.pos], linea, columna)
                 return
-            if c == "\n":
+            if c in "\r\n":
                 break
             self._avanzar()
         self._error("Atomo/cadena sin cierre", linea, columna,
                     self.texto[inicio:self.pos], "Descartar y continuar hasta fin de linea")
-        while self.pos < self.longitud and self.texto[self.pos] != "\n":
+        while self.pos < self.longitud and self.texto[self.pos] not in "\r\n":
             self._avanzar()
 
     def _scan_operador_delimitador(self, linea, columna):

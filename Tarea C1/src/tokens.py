@@ -35,7 +35,7 @@ class Token:
 	columna: int 
 	indice_tabla: int = -1
 	def __str__(self) -> str:
-		return f"<{self.tipo.name}, '{self.lexema}', {self.linea}, {self.columna}>"
+		return f"<{self.tipo.name}, {self.lexema!r}, {self.linea}, {self.columna}>"
 
 
 @dataclass

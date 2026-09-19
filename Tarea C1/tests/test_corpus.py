@@ -1,5 +1,7 @@
 def test_todos_los_validos_sin_errores(corpus_dir, analizar):
-    for archivo in sorted((corpus_dir / "validos").glob("*.pl")):
+    archivos = sorted((corpus_dir / "validos").glob("*.pl"))
+    assert len(archivos) >= 20, "El enunciado exige al menos 20 entradas válidas"
+    for archivo in archivos:
         texto = archivo.read_text(encoding="utf-8")
         tokens, errores = analizar(texto)
         assert errores == [], f"{archivo.name}: {[e.mensaje for e in errores]}"
@@ -7,7 +9,9 @@ def test_todos_los_validos_sin_errores(corpus_dir, analizar):
 
 
 def test_todos_los_invalidos_con_errores(corpus_dir, analizar):
-    for archivo in sorted((corpus_dir / "invalidos").glob("*.pl")):
+    archivos = sorted((corpus_dir / "invalidos").glob("*.pl"))
+    assert len(archivos) >= 8, "El enunciado exige al menos 8 entradas inválidas"
+    for archivo in archivos:
         texto = archivo.read_text(encoding="utf-8")
         tokens, errores = analizar(texto)
         assert errores, f"{archivo.name} debia producir errores"

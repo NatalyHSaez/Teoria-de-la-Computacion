@@ -11,7 +11,11 @@ def main():
     parser.add_argument("--tabla", action="store_true", help="imprimir la tabla de lexemas")
     args = parser.parse_args()
 
-    texto = Path(args.archivo).read_text(encoding="utf-8-sig")
+    try:
+        texto = Path(args.archivo).read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeError) as error:
+        print(f"No se pudo leer {args.archivo!r}: {error}", file=sys.stderr)
+        return 2
     tabla = TablaLexemas()
     lexer = Lexer(texto, tabla)
     tokens, errores = lexer.analizar()
@@ -26,6 +30,7 @@ def main():
         print("\n=== Tabla de Lexemas ===")
         for lex, info in sorted(tabla.items(), key=lambda x: x[1]["indice"]):
             print(f"{info['indice']:3d}: {lex!r:20s} x{info['veces']}")
+    return 1 if errores else 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
