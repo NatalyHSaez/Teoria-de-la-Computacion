@@ -1,0 +1,2 @@
+persona('Juan Perez').
+simbolo(':-').

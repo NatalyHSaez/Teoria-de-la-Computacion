@@ -1,0 +1,1 @@
+cliente(Nombre, Edad).
