@@ -47,3 +47,18 @@ def test_ubicacion_del_error_incluye_linea_y_columna():
     assert len(errores) == 1
     assert errores[0].linea == 2
     assert errores[0].fragmento == "@"
+
+
+def test_numero_con_varios_puntos_se_descarta_completo():
+    tokens, errores, _ = tokenizar("x(1.2.3.4).")
+    assert len(errores) == 1
+    assert errores[0].fragmento == "1.2.3.4"
+    assert (T.ENTERO, "4") not in tokens
+    assert tokens[-1] == (T.PUNTO, ".")
+
+
+def test_digito_unicode_no_detiene_el_analisis():
+    tokens, errores, _ = tokenizar("x(²). y.")
+    assert len(errores) == 1
+    assert "carácter no admitido" in errores[0].mensaje
+    assert (T.ATOMO, "y") in tokens

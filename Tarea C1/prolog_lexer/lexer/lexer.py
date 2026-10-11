@@ -103,6 +103,11 @@ _ESCAPES_SIMPLES = {
 }
 
 
+def _es_digito(c):
+    """Solo dígitos decimales ASCII (0-9), coherente con D = [0-9] del informe."""
+    return c != "" and "0" <= c <= "9"
+
+
 def _es_inicio_atomo(c):
     return c.isalpha() and c.islower()
 
@@ -163,7 +168,7 @@ class AnalizadorLexico:
             c = self._actual()
             linea_ini, col_ini = self.linea, self.columna
 
-            if c.isdigit():
+            if _es_digito(c):
                 self._leer_numero(linea_ini, col_ini)
             elif c == "'":
                 self._leer_atomo_comillas(linea_ini, col_ini)
@@ -218,7 +223,7 @@ class AnalizadorLexico:
     def _leer_numero(self, linea_ini, col_ini):
         inicio = self.pos
 
-        while not self._fin() and self._actual().isdigit():
+        while not self._fin() and _es_digito(self._actual()):
             self._avanzar()
 
         es_real = False
@@ -226,10 +231,10 @@ class AnalizadorLexico:
         # Parte decimal: solo si el punto va seguido de un dígito, para no
         # confundirlo con el punto final de cláusula (p. ej. "3." -> ENTERO
         # '3' seguido de PUNTO '.').
-        if self._actual() == "." and self._actual(1).isdigit():
+        if self._actual() == "." and _es_digito(self._actual(1)):
             es_real = True
             self._avanzar()  # '.'
-            while not self._fin() and self._actual().isdigit():
+            while not self._fin() and _es_digito(self._actual()):
                 self._avanzar()
 
         # Parte exponencial opcional.
@@ -238,7 +243,7 @@ class AnalizadorLexico:
             if self._actual() in ("+", "-"):
                 self._avanzar()
             n_digitos = 0
-            while not self._fin() and self._actual().isdigit():
+            while not self._fin() and _es_digito(self._actual()):
                 self._avanzar()
                 n_digitos += 1
             if n_digitos == 0:
@@ -250,11 +255,13 @@ class AnalizadorLexico:
                 return
             es_real = True
 
-        # Punto decimal adicional -> número mal formado ("1.2.3").
-        if self._actual() == "." and self._actual(1).isdigit():
-            self._avanzar()
-            while not self._fin() and self._actual().isdigit():
-                self._avanzar()
+        # Puntos decimales adicionales -> número mal formado ("1.2.3", "1.2.3.4").
+        # Se consumen todos los tramos ".dígitos" para descartar la secuencia completa.
+        if self._actual() == "." and _es_digito(self._actual(1)):
+            while self._actual() == "." and _es_digito(self._actual(1)):
+                self._avanzar()  # '.'
+                while not self._fin() and _es_digito(self._actual()):
+                    self._avanzar()
             lexema = self.fuente[inicio:self.pos]
             self.errores.append(ErrorLexico(
                 "número mal formado (demasiados puntos decimales)",
